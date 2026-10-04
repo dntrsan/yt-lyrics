@@ -2,6 +2,8 @@
    （--ytl-side-vw は再生オプションの「歌詞欄を広く / 動画を大きく」で変わる） */
 ytd-watch-flexy.ytl-side[is-two-columns_] {
   --ytd-watch-flexy-sidebar-width: clamp(440px, var(--ytl-side-vw, 44vw), 960px) !important;
+  /* YouTube はプレイヤーの最小幅を 853px にしていて、そのままだと欄を広げられないので下げる */
+  --ytd-watch-flexy-min-player-width: 480px !important;
 }
 ytd-watch-flexy.ytl-side #related {
   display: none !important;
