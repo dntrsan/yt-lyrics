@@ -567,9 +567,9 @@
       const it = S.items[prev];
       S.els[prev].classList.remove('active');
       // 白に戻して元の高さへ（戻りは CSS の transition でゆっくり下ろす）
-      it.unitEls?.forEach((u) => { u.style.backgroundPositionX = ''; u.style.transform = ''; });
+      it.unitEls?.forEach((u) => { u.style.backgroundPositionX = ''; u.style.transform = ''; u.style.removeProperty('--gl'); });
       it.dots?.forEach((d) => (d.style.opacity = ''));
-      it.pos = it.lift = null;
+      it.pos = it.lift = it.glow = null;
     }
     if (S.browsing) S.browseShift += topOf(idx) - topOf(prev);
     S.active = idx;
@@ -579,6 +579,7 @@
       if (it.unitEls) {
         it.pos = it.unitEls.map(() => -1);
         it.lift = it.unitEls.map(() => 0);
+        it.glow = it.unitEls.map(() => 0);
       }
     }
     layout();
@@ -607,10 +608,22 @@
         it.lift[k] = lift;
         el.style.transform = `translate3d(0, ${(-LIFT_EM * lift).toFixed(4)}em, 0)`;
       }
+      // 光：浮かび上がりと一緒にふわっと強まり、歌い終わると少し落ち着く。長く伸ばす音ほど強く光る。
+      // 光の効果自体は歌っている行の全文字に最初から付けてあり（CSS）、ここでは強さだけを変えるのでカクつかない
+      const dur = u.t1 - u.t0;
+      const peak = Math.sin(Math.PI * clamp((t - u.t0) / Math.max(0.9, dur * 1.6), 0, 1));
+      const glow = Math.round((GLOW_REST * easeInOut(g) + (GLOW_PEAK + GLOW_LONG * clamp((dur - 0.5) / 1.5, 0, 1)) * peak) * 100) / 100;
+      if (it.glow[k] !== glow) {
+        it.glow[k] = glow;
+        el.style.setProperty('--gl', String(glow));
+      }
     });
   }
   const LIFT_SEC = 0.6;
   const LIFT_EM = 0.07;
+  const GLOW_REST = 0.22; // 歌い終わった文字に残る光
+  const GLOW_PEAK = 0.25; // 歌っている瞬間に足す光
+  const GLOW_LONG = 0.2;  // 長く伸ばす音のときにさらに足す光
   const easeInOut = (x) => 0.5 - Math.cos(Math.PI * x) / 2;
 
   function frame() {

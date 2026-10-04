@@ -153,10 +153,14 @@ button.icon:active { transform: scale(.9); }
   background-size: 225% 100%; background-repeat: no-repeat; background-position: 0% 0;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  transition: transform .9s cubic-bezier(.3, .7, .25, 1); /* 行が終わったらゆっくり下ろす */
+  transition: transform .9s cubic-bezier(.3, .7, .25, 1), filter .9s ease; /* 行が終わったらゆっくり下ろし、光も消す */
 }
-/* 歌っている行は毎フレーム JS で高さを決めるので transition は切り、合成レイヤーにして小数点以下までなめらかに動かす */
-.line.active .u { transition: none; will-change: transform; }
+/* 歌っている行は毎フレーム JS で高さと光の強さ（--gl）を決めるので transition は切る。
+   合成レイヤーにして小数点以下までなめらかに動かし、光の効果は最初から付けておく（途中で付け外しするとカクつく） */
+.line.active .u {
+  transition: none; will-change: transform;
+  filter: drop-shadow(0 0 .2em rgb(255 255 255 / var(--gl, 0)));
+}
 .u.plainu { display: inline; }
 
 /* 間奏の「• • •」。非アクティブ時は見えない空き（節の区切り）になる */
