@@ -1,0 +1,7 @@
+/* 歌詞パネル表示中：おすすめ欄を隠して広げ、そのぶんプレイヤーを少し小さくする */
+ytd-watch-flexy.ytl-side[is-two-columns_] {
+  --ytd-watch-flexy-sidebar-width: clamp(420px, 38vw, 680px) !important;
+}
+ytd-watch-flexy.ytl-side #related {
+  display: none !important;
+}

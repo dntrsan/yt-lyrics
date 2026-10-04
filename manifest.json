@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YT Lyrics",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "YouTube の再生に合わせて Apple Music 風の同期歌詞を表示。キー固定なしの速度変更、slowed / sped up 版の同期、リピートに対応",
   "permissions": ["storage"],
   "host_permissions": ["https://lrclib.net/*"],
@@ -16,6 +16,7 @@
     {
       "matches": ["https://www.youtube.com/*"],
       "js": ["core.js", "style.js", "content.js"],
+      "css": ["page.css"],
       "run_at": "document_idle"
     }
   ]

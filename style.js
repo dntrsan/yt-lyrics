@@ -1,8 +1,10 @@
 // オーバーレイの見た目（Shadow DOM に adoptedStyleSheets で入れる）
+// .ov.side = おすすめ欄の位置に置くパネル、.ov.full = Apple Music 風の全画面
 globalThis.YTL_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.ov.side .only-full, .ov.full .only-side { display: none !important; }
 
 .ov {
   --dim: .32;
@@ -10,13 +12,14 @@ globalThis.YTL_CSS = `
   --fg3: rgba(255,255,255,.42);
   --ease: cubic-bezier(.2, .9, .25, 1);
   position: absolute; inset: 0;
-  overflow: clip; /* hidden だと focus() などで横にスクロールされて左端が切れる */
-  display: grid; grid-template-columns: minmax(320px, 40%) minmax(0, 1fr);
+  overflow: clip; /* hidden だと focus() などで横にスクロールされて端が切れる */
   background: #101012; color: #fff;
   font-family: "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", "Malgun Gothic", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
+.ov.full { display: grid; grid-template-columns: minmax(320px, 40%) minmax(0, 1fr); }
+.ov.side { display: flex; flex-direction: column; border-radius: 12px; background: #18181b; }
 
 /* ---- 背景：動画の色を大きくにじませて、ゆっくり流す ---- */
 .bgw { position: absolute; inset: 0; overflow: clip; }
@@ -24,10 +27,15 @@ globalThis.YTL_CSS = `
 .b1 { left: -35vmax; top: -45vmax; animation: drift1 34s ease-in-out infinite alternate; }
 .b2 { right: -40vmax; bottom: -50vmax; animation: drift2 42s ease-in-out infinite alternate; }
 .b3 { left: 15vmax; top: 10vmax; width: 70vmax; height: 70vmax; opacity: .7; animation: drift3 26s linear infinite; }
-@keyframes drift1 { to { transform: rotate(140deg) scale(1.2) translate(6vmax, 4vmax); } }
-@keyframes drift2 { from { transform: scale(1.1); } to { transform: rotate(-120deg) scale(.95) translate(-5vmax, -6vmax); } }
-@keyframes drift3 { from { transform: rotate(0deg) translate(8vmax) rotate(0deg); } to { transform: rotate(360deg) translate(8vmax) rotate(-360deg); } }
+.ov.side .blob { width: 130%; height: 130%; filter: blur(48px) saturate(1.8); }
+.ov.side .b1 { left: -45%; top: -40%; }
+.ov.side .b2 { right: -55%; bottom: -45%; }
+.ov.side .b3 { left: 10%; top: 25%; width: 90%; height: 90%; }
+@keyframes drift1 { to { transform: rotate(140deg) scale(1.2) translate(6%, 4%); } }
+@keyframes drift2 { from { transform: scale(1.1); } to { transform: rotate(-120deg) scale(.95) translate(-5%, -6%); } }
+@keyframes drift3 { from { transform: rotate(0deg) translate(8%) rotate(0deg); } to { transform: rotate(360deg) translate(8%) rotate(-360deg); } }
 .shade { position: absolute; inset: 0; background: rgba(0,0,0,.34); }
+.ov.side .shade { background: rgba(0,0,0,.3); }
 
 /* ---- ボタン共通 ---- */
 button {
@@ -41,7 +49,7 @@ button.icon:active { transform: scale(.9); }
 .circ { width: 34px; height: 34px; padding: 8px; background: rgba(255,255,255,.14); }
 .circ:hover { background: rgba(255,255,255,.24); }
 
-/* ---- 左：映像・曲情報・再生操作 ---- */
+/* ---- 左（全画面時）：映像・曲情報・再生操作 ---- */
 .left { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 6vh 3vw 6vh 5vw; }
 .col { width: 100%; max-width: 520px; margin: 0 auto; }
 .art {
@@ -82,14 +90,27 @@ button.icon:active { transform: scale(.9); }
 .pill:hover { background: rgba(255,255,255,.22); }
 .pill.changed { color: #fff; background: rgba(255,255,255,.24); }
 
-/* ---- 右：歌詞 ---- */
+/* ---- パネル時：上に曲情報、真ん中に歌詞、下にリピートと速度 ---- */
+.ov.side .left, .ov.side .col { display: contents; }
+.ov.side .art, .ov.side .scrub, .ov.side .tbtn { display: none; }
+.ov.side .info { order: 1; position: relative; z-index: 1; margin: 0; padding: 16px 128px 8px 20px; }
+.ov.side .meta .t { font-size: 16px; }
+.ov.side .meta .a { font-size: 15px; }
+.ov.side .right { order: 2; flex: 1; min-height: 0; }
+.ov.side .transport { order: 3; position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 14px 12px; }
+.ov.side .transport .repeat { margin-right: auto; }
+.ov.side .top { top: 14px; right: 14px; gap: 8px; }
+.ov.side .circ { width: 30px; height: 30px; padding: 7px; }
+
+/* ---- 歌詞 ---- */
 .right {
-  position: relative; z-index: 1; overflow: clip;
+  position: relative; z-index: 1; overflow: clip; container-type: inline-size;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 80%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 80%, transparent 100%);
 }
 .lyrics { position: absolute; inset: 0; }
 .track { position: relative; padding: 0 7vw 0 2vw; }
+.ov.side .track { padding: 0 22px; }
 
 .line {
   --s: .965;
@@ -104,6 +125,7 @@ button.icon:active { transform: scale(.9); }
   will-change: transform;
   cursor: pointer;
 }
+.ov.side .line { font-size: clamp(20px, 5.4cqw, 32px); }
 .line:hover { background: rgba(255,255,255,.07); }
 .line.active { --s: 1; opacity: 1; filter: none; transition: transform .8s var(--ease) var(--delay, 0ms), opacity 0s, filter .25s ease; }
 .line.gap { margin-top: .7em; }
@@ -136,6 +158,7 @@ button.icon:active { transform: scale(.9); }
 .ov.plain .line:hover { background: none; }
 
 .status { position: absolute; left: 2vw; right: 7vw; top: 32%; font-size: 20px; line-height: 1.6; color: var(--fg2); }
+.ov.side .status { left: 22px; right: 22px; top: 26%; font-size: 16px; }
 
 /* ---- 右上 ---- */
 .top { position: absolute; top: 18px; right: 20px; z-index: 4; display: flex; gap: 10px; }
@@ -152,6 +175,7 @@ button.icon:active { transform: scale(.9); }
   opacity: 0; transform: translateY(10px) scale(.98); pointer-events: none;
   transition: opacity .2s, transform .25s var(--ease);
 }
+.ov.side .sheet { left: 10px; right: 10px; width: auto; bottom: 54px; max-height: calc(100% - 108px); }
 .sheet.open { opacity: 1; transform: none; pointer-events: auto; }
 .shead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .shead b { font-size: 15px; font-weight: 700; }
@@ -188,6 +212,7 @@ input[type=range]::-webkit-slider-thumb {
   transform: translateX(100%); visibility: hidden;
   transition: transform .3s var(--ease), visibility 0s .3s;
 }
+.ov.side .drawer { width: 100%; }
 .drawer.open { transform: none; visibility: visible; transition: transform .3s var(--ease); }
 .drawer .row input {
   flex: 1; min-width: 0; font: inherit; font-size: 14px; color: #fff; outline: none; user-select: text;
@@ -203,12 +228,12 @@ input[type=range]::-webkit-slider-thumb {
 .res.cur { box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
 
 @media (max-width: 900px) {
-  .ov { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .left { padding: 64px 20px 6px; }
-  .col { max-width: none; }
-  .art, .hint { display: none; }
-  .info { margin-top: 0; }
-  .line { font-size: 26px; }
-  .sheet { left: 16px; }
+  .ov.full { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .ov.full .left { padding: 64px 20px 6px; }
+  .ov.full .col { max-width: none; }
+  .ov.full .art, .ov.full .hint { display: none; }
+  .ov.full .info { margin-top: 0; }
+  .ov.full .line { font-size: 26px; }
+  .ov.full .sheet { left: 16px; }
 }
 `;

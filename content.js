@@ -35,6 +35,8 @@
     repeat: { d: ['M17 3.5l3 3-3 3', 'M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H20', 'M7 20.5l-3-3 3-3', 'M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H4'], stroke: true },
     repeat1: { d: ['M17 3.5l3 3-3 3', 'M4 11.5V10a3.5 3.5 0 0 1 3.5-3.5H20', 'M7 20.5l-3-3 3-3', 'M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H4', 'M11 10.6l1.4-1v4.9'], stroke: true },
     close: { d: ['M6.5 6.5l11 11M17.5 6.5l-11 11'], stroke: true, w: 2.2 },
+    expand: { d: ['M14 4.5h5.5V10', 'M19.5 4.5L13 11', 'M10 19.5H4.5V14', 'M4.5 19.5L11 13'], stroke: true, w: 2 },
+    collapse: { d: ['M19.5 10H14V4.5', 'M14 10l6-6', 'M4.5 14H10v5.5', 'M10 14l-6 6'], stroke: true, w: 2 },
     search: { d: ['M10.5 4.5a6 6 0 1 0 0 12a6 6 0 1 0 0-12z', 'M15 15l4.5 4.5'], stroke: true, w: 2.1 },
     lyrics: { d: ['M5 5.5h14a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-6.5L8 20.5V17H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2z', 'M7.5 9.5h9M7.5 13h6'], stroke: true, w: 1.8 },
   };
@@ -67,7 +69,9 @@
     id: null, info: null, video: null, player: null,
     items: [], els: [], synced: false, record: null, guess: null, candidates: [],
     offset: 0, scale: 1, scaleAuto: false, repeat: false,
-    active: -2, open: false, raf: 0, tick: 0, blobTick: -99, lastDrawn: -1, wasPaused: null,
+    // side: おすすめ欄の位置のパネルを出すか（保存される） / full: 全画面表示中か
+    side: false, full: false, fullFromFs: false, mode: 'off', place: null,
+    active: -2, raf: 0, tick: 0, blobTick: -99, lastDrawn: -1, wasPaused: null,
     browsing: false, browseShift: 0, browseTimer: 0, loading: null, loadedId: null,
   };
 
@@ -96,7 +100,14 @@
 
   // ---------- 画面 ----------
   const host = h('div', { id: 'ytl-host' });
-  host.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:none;';
+  host.style.display = 'none';
+  const HOST_CSS = {
+    full: 'display:block;position:fixed;inset:0;z-index:2147483647;',
+    // スクロールしても画面に留まるよう、おすすめ欄の中で sticky にする
+    side: 'display:block;position:sticky;top:68px;height:calc(100vh - 80px);min-height:360px;margin-bottom:12px;z-index:1;',
+    // 1 列表示（ウィンドウが狭い）のときは動画のすぐ下に置く
+    below: 'display:block;position:relative;height:min(62vh,640px);margin:12px 0;',
+  };
   const shadow = host.attachShadow({ mode: 'open' });
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(globalThis.YTL_CSS);
@@ -161,7 +172,7 @@
         h('div', { class: 'art' }, mirror),
         h('div', { class: 'info' },
           h('div', { class: 'meta' }, titleEl, artistEl, srcEl),
-          iconButton('more', 'more', '再生オプション', () => toggleSheet())),
+          iconButton('more', 'more only-full', '再生オプション', () => toggleSheet())),
         h('div', { class: 'scrub' },
           h('div', { class: 'prog', onclick: seekBar }, h('div', { class: 'bar' }, fillEl)),
           h('div', { class: 'tl' }, timeL, timeR)),
@@ -170,14 +181,16 @@
           iconButton('prev', 'tbtn', '最初から / 前の動画', prev),
           playBtn,
           iconButton('next', 'tbtn', '次の動画', next),
-          pill))),
+          pill,
+          iconButton('more', 'more only-side', '再生オプション', () => toggleSheet())))),
     rightCol,
     h('div', { class: 'top' },
       iconButton('search', 'circ', '歌詞を選ぶ', () => toggleDrawer()),
-      iconButton('close', 'circ', '閉じる (Esc)', () => close())),
+      iconButton('expand', 'circ only-side', '大きく表示', () => setFull(true)),
+      iconButton('collapse', 'circ only-full', '元に戻す (Esc)', () => setFull(false)),
+      iconButton('close', 'circ only-side', '歌詞を閉じる (Shift+L)', () => setSide(false))),
     optSheet, drawer);
   shadow.append(ov);
-  document.documentElement.append(host);
 
   const mctx = mirror.getContext('2d');
 
@@ -291,8 +304,9 @@
     S.repeat = !S.repeat;
     if (S.video) S.video.loop = S.repeat;
     showRepeat();
-    chrome.storage.local.set({ prefs: { repeat: S.repeat } });
+    savePrefs();
   }
+  const savePrefs = () => chrome.storage.local.set({ prefs: { repeat: S.repeat, side: S.side } });
   function showRepeat() {
     repeatBtn.replaceChildren(icon(S.repeat ? 'repeat1' : 'repeat'));
     repeatBtn.classList.toggle('on', S.repeat);
@@ -403,7 +417,7 @@
 
   function layout(instant) {
     const els = S.els;
-    if (!els.length || !S.open) return;
+    if (!els.length || S.mode === 'off') return;
     const ref = Math.max(0, S.active);
     const anchor = S.synced ? lyricsBox.clientHeight * 0.32 : 48;
     const y = anchor - topOf(ref) + S.browseShift + 'px';
@@ -634,33 +648,86 @@
     closeDrawer();
   }
 
-  // ---------- 開閉 ----------
-  function open() {
-    if (S.open) return;
-    S.open = true;
-    host.style.display = 'block';
-    if (!S.id) resetLyrics('動画を再生すると歌詞を探します');
-    else if (S.loadedId !== S.id) load(S.id);
-    S.wasPaused = null;
-    S.lastDrawn = -1;
-    cancelAnimationFrame(S.raf);
-    S.raf = requestAnimationFrame(frame);
+  // ---------- 表示場所の切り替え ----------
+  function setSide(on) {
+    S.side = on;
+    savePrefs();
+    apply();
+  }
+
+  function setFull(on) {
+    S.full = on;
+    S.fullFromFs = on && !!document.fullscreenElement;
+    apply();
+  }
+
+  // YouTube の全画面中はパネルが見えないので全画面表示を、それ以外はパネルを開け閉めする
+  function toggle() {
+    if (document.fullscreenElement || S.full) setFull(!S.full);
+    else if (location.pathname === '/watch') setSide(!S.side);
+  }
+
+  // 今の状態に合わせてパネルを置き直す（何度呼んでも、変化がなければ何もしない）
+  function apply() {
+    const flexy = document.querySelector('ytd-watch-flexy');
+    const onWatch = location.pathname === '/watch' && !!flexy && !flexy.hidden;
+
+    // ページ側：パネルを出している間は、おすすめ欄を隠して広げ、プレイヤーを少し小さくする
+    const wide = S.side && onWatch;
+    if (flexy && flexy.classList.contains('ytl-side') !== wide) {
+      flexy.classList.toggle('ytl-side', wide);
+      requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    }
+
+    let mode = 'off', place = null;
+    if (S.full) {
+      mode = 'full';
+      place = document.fullscreenElement || document.documentElement;
+    } else if (wide) {
+      const two = flexy.hasAttribute('is-two-columns_');
+      place = flexy.querySelector(two ? '#secondary' : '#below');
+      if (place) mode = two ? 'side' : 'below';
+    }
+
+    if (mode === 'off') {
+      if (S.mode !== 'off') {
+        S.mode = 'off';
+        host.style.display = 'none';
+        closeSheet();
+        closeDrawer();
+        cancelAnimationFrame(S.raf);
+        S.raf = 0;
+      }
+      return;
+    }
+
+    const misplaced = mode === 'full' ? host.parentNode !== place : place.firstElementChild !== host;
+    if (mode === S.mode && !misplaced) return;
+    if (misplaced) (mode === 'full' ? place.append(host) : place.prepend(host));
+    host.style.cssText = HOST_CSS[mode];
+    ov.classList.toggle('full', mode === 'full');
+    ov.classList.toggle('side', mode !== 'full');
+    const wasOff = S.mode === 'off';
+    S.mode = mode;
+    if (wasOff) {
+      if (!S.id) resetLyrics('動画を再生すると歌詞を探します');
+      S.wasPaused = null;
+      S.lastDrawn = -1;
+      cancelAnimationFrame(S.raf);
+      S.raf = requestAnimationFrame(frame);
+    }
+    if (S.id && S.loadedId !== S.id) load(S.id);
     requestAnimationFrame(() => layout(true));
   }
-  function close() {
-    S.open = false;
-    host.style.display = 'none';
-    closeSheet();
-    closeDrawer();
-    cancelAnimationFrame(S.raf);
-  }
-  const toggle = () => (S.open ? close() : open());
 
   // ---------- 入力 ----------
+  // 歌詞の上ではホイールで歌詞を見回す。パネルのそれ以外の場所ではページを普通にスクロールさせる
   ov.addEventListener('wheel', (e) => {
     if (results.contains(e.target) || optSheet.contains(e.target)) return;
-    e.preventDefault();
-    if (rightCol.contains(e.target)) browse(e.deltaY);
+    if (rightCol.contains(e.target)) {
+      e.preventDefault();
+      browse(e.deltaY);
+    } else if (S.mode === 'full') e.preventDefault();
   }, { passive: false });
 
   // ボタンにフォーカスを残さない（残るとスペースキーでボタンまで押されてしまう）
@@ -682,12 +749,16 @@
       const typing = tgt && (tgt.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tgt.tagName));
       const inOverlay = path.includes(host);
       if (type === 'keydown') {
-        if (e.key === 'Escape' && S.open) {
-          e.stopImmediatePropagation();
-          if (optSheet.classList.contains('open')) closeSheet();
-          else if (drawer.classList.contains('open')) closeDrawer();
-          else close();
-          return;
+        // Esc はオプション → 検索パネル → 全画面表示の順に閉じる（パネル自体は閉じず、YouTube に渡す）
+        if (e.key === 'Escape' && S.mode !== 'off') {
+          const target = optSheet.classList.contains('open') ? closeSheet
+            : drawer.classList.contains('open') ? closeDrawer
+            : S.full ? () => setFull(false) : null;
+          if (target) {
+            e.stopImmediatePropagation();
+            target();
+            return;
+          }
         }
         if (e.code === 'KeyL' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
           e.preventDefault();
@@ -702,11 +773,13 @@
     }, true);
   }
 
-  // フルスクリーン中はその要素の中にいないと見えない
+  // フルスクリーン中はその要素の中にいないと見えない。全画面中に開いた全画面表示は、抜けたら閉じる
   document.addEventListener('fullscreenchange', () => {
-    (document.fullscreenElement || document.documentElement).append(host);
-    if (S.open) requestAnimationFrame(() => layout(true));
+    if (!document.fullscreenElement && S.full && S.fullFromFs) S.full = false;
+    apply();
   });
+  // ウィンドウ幅で YouTube が 2 列 ⇔ 1 列を切り替えるので、置き場所を見直す
+  window.addEventListener('resize', () => apply());
 
   // ---------- プレイヤーへのボタン追加 ----------
   function ensureButton() {
@@ -729,10 +802,8 @@
     if (v && S.repeat && !v.loop) v.loop = true;
     ensureButton();
     // 広告中は広告の動画情報が返るので見ない
-    if (S.player?.classList.contains('ad-showing')) return;
-    const d = await pageData();
-    if (!d?.id || !d.title) return;
-    if (d.id !== S.id) {
+    const d = S.player?.classList.contains('ad-showing') ? null : await pageData();
+    if (d?.id && d.title && d.id !== S.id) {
       S.id = d.id;
       S.info = d;
       S.candidates = [];
@@ -742,14 +813,16 @@
       resetLyrics('');
       titleEl.textContent = d.title;
       artistEl.textContent = '';
-      if (S.open) load(d.id);
     }
+    apply(); // 表示中なら新しい動画の歌詞を読み込む。YouTube の作り直しで外れたパネルも戻す
   }
 
   chrome.storage.local.get('prefs').then((o) => {
     S.repeat = !!o.prefs?.repeat;
+    S.side = !!o.prefs?.side;
     if (S.repeat && S.video) S.video.loop = true;
     showRepeat();
+    apply();
   });
   showRepeat();
   showOffset();
