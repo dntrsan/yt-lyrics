@@ -21,13 +21,14 @@ globalThis.YTL_CSS = `
 .ov.full { display: grid; grid-template-columns: minmax(320px, 40%) minmax(0, 1fr); }
 .ov.side { display: flex; flex-direction: column; border-radius: 12px; background: #18181b; }
 
-/* ---- 背景：動画の色を大きくにじませて、ゆっくり流す ---- */
+/* ---- 背景：動画の色を大きくにじませて、ゆっくり流す ----
+   ぼかしはキャンバスの中で済ませてあるので、ここでは引き伸ばして回すだけ（CSS の blur は重いので使わない） */
 .bgw { position: absolute; inset: 0; overflow: clip; }
-.blob { position: absolute; width: 110vmax; height: 110vmax; border-radius: 50%; filter: blur(70px) saturate(1.8); opacity: .9; will-change: transform; }
+.blob { position: absolute; width: 110vmax; height: 110vmax; opacity: .9; will-change: transform; }
 .b1 { left: -35vmax; top: -45vmax; animation: drift1 34s ease-in-out infinite alternate; }
 .b2 { right: -40vmax; bottom: -50vmax; animation: drift2 42s ease-in-out infinite alternate; }
 .b3 { left: 15vmax; top: 10vmax; width: 70vmax; height: 70vmax; opacity: .7; animation: drift3 26s linear infinite; }
-.ov.side .blob { width: 130%; height: 130%; filter: blur(48px) saturate(1.8); }
+.ov.side .blob { width: 130%; height: 130%; }
 .ov.side .b1 { left: -45%; top: -40%; }
 .ov.side .b2 { right: -55%; bottom: -45%; }
 .ov.side .b3 { left: 10%; top: 25%; width: 90%; height: 90%; }
@@ -36,6 +37,12 @@ globalThis.YTL_CSS = `
 @keyframes drift3 { from { transform: rotate(0deg) translate(8%) rotate(0deg); } to { transform: rotate(360deg) translate(8%) rotate(-360deg); } }
 .shade { position: absolute; inset: 0; background: rgba(0,0,0,.34); }
 .ov.side .shade { background: rgba(0,0,0,.3); }
+/* ページ全体の背景（#ytl-bg の中身）。YouTube の文字が読めるよう少し暗めにする */
+.site { position: absolute; inset: 0; background: #0f0f0f; }
+.site .shade { background: rgba(0,0,0,.5); }
+/* 背景をページ全体に出しているときは、パネル自体は透明にしてなじませる */
+.ov.side.clear { background: transparent; }
+.ov.side.clear .bgw, .ov.side.clear .shade { display: none; }
 
 /* ---- ボタン共通 ---- */
 button {
@@ -94,8 +101,8 @@ button.icon:active { transform: scale(.9); }
 .ov.side .left, .ov.side .col { display: contents; }
 .ov.side .art, .ov.side .scrub, .ov.side .tbtn { display: none; }
 .ov.side .info { order: 1; position: relative; z-index: 1; margin: 0; padding: 16px 128px 8px 20px; }
-.ov.side .meta .t { font-size: 16px; }
-.ov.side .meta .a { font-size: 15px; }
+.ov.side .meta .t { font-size: 18px; }
+.ov.side .meta .a { font-size: 16px; }
 .ov.side .right { order: 2; flex: 1; min-height: 0; }
 .ov.side .transport { order: 3; position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 14px 12px; }
 .ov.side .transport .repeat { margin-right: auto; }
@@ -114,7 +121,8 @@ button.icon:active { transform: scale(.9); }
 
 .line {
   --s: .965;
-  font-size: clamp(28px, 2.9vw, 50px); font-weight: 700; line-height: 1.2; letter-spacing: -.012em;
+  font-size: clamp(calc(28px * var(--fs, 1)), calc(2.9vw * var(--fs, 1)), calc(50px * var(--fs, 1)));
+  font-weight: 700; line-height: 1.2; letter-spacing: -.012em;
   font-feature-settings: "palt";
   padding: .32em .45em; margin: 0 -.45em; border-radius: .35em;
   transform-origin: left center;
@@ -125,7 +133,8 @@ button.icon:active { transform: scale(.9); }
   will-change: transform;
   cursor: pointer;
 }
-.ov.side .line { font-size: clamp(20px, 5.4cqw, 32px); }
+/* パネルの幅に合わせて大きくする（1 行に日本語 13 字前後） */
+.ov.side .line { font-size: clamp(calc(22px * var(--fs, 1)), calc(7.2cqw * var(--fs, 1)), calc(58px * var(--fs, 1))); }
 .line:hover { background: rgba(255,255,255,.07); }
 .line.active { --s: 1; opacity: 1; filter: none; transition: transform .8s var(--ease) var(--delay, 0ms), opacity 0s, filter .25s ease; }
 .line.gap { margin-top: .7em; }
@@ -233,7 +242,7 @@ input[type=range]::-webkit-slider-thumb {
   .ov.full .col { max-width: none; }
   .ov.full .art, .ov.full .hint { display: none; }
   .ov.full .info { margin-top: 0; }
-  .ov.full .line { font-size: 26px; }
+  .ov.full .line { font-size: calc(26px * var(--fs, 1)); }
   .ov.full .sheet { left: 16px; }
 }
 `;

@@ -65,12 +65,51 @@
   }
   const iconButton = (name, cls, title, onclick) => h('button', { class: 'icon ' + cls, title, 'aria-label': title, onclick }, icon(name));
 
+  // ---------- 背景のにじみ ----------
+  // 動画を一度だけ小さなキャンバスに写し、そこから 3 つの「にじみ」を作る。
+  // ぼかしと丸い縁はキャンバスの中で焼き込むので、CSS では引き伸ばして回すだけで済む（画面全体に敷いても軽い）
+  const BLOB_PX = 128;
+  const CROPS = [[0, 0, 1, 1], [0, 0, 0.5, 1], [0.5, 0.33, 0.5, 0.67]];
+  const tiny = document.createElement('canvas');
+  tiny.width = 48;
+  tiny.height = 27;
+  const tinyCtx = tiny.getContext('2d');
+
+  function makeBlobs() {
+    return ['b1', 'b2', 'b3'].map((c) => {
+      const el = h('canvas', { class: 'blob ' + c, width: String(BLOB_PX), height: String(BLOB_PX) });
+      const ctx = el.getContext('2d');
+      const r = BLOB_PX / 2;
+      const fade = ctx.createRadialGradient(r, r, 0, r, r, r);
+      fade.addColorStop(0, '#000');
+      fade.addColorStop(0.55, 'rgba(0,0,0,.85)');
+      fade.addColorStop(1, 'rgba(0,0,0,0)');
+      return { el, ctx, fade };
+    });
+  }
+
+  function paintBlobs(blobs) {
+    const W = tiny.width, H = tiny.height, S2 = BLOB_PX;
+    blobs.forEach(({ ctx, fade }, i) => {
+      const [x, y, w, hh] = CROPS[i];
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.filter = 'blur(10px) saturate(1.8)';
+      ctx.clearRect(0, 0, S2, S2);
+      ctx.drawImage(tiny, x * W, y * H, w * W, hh * H, -20, -20, S2 + 40, S2 + 40);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, S2, S2);
+    });
+  }
+
   const S = {
     id: null, info: null, video: null, player: null,
     items: [], els: [], synced: false, record: null, guess: null, candidates: [],
     offset: 0, scale: 1, scaleAuto: false, repeat: false,
     // side: おすすめ欄の位置のパネルを出すか（保存される） / full: 全画面表示中か
-    side: false, full: false, fullFromFs: false, mode: 'off', place: null,
+    side: false, full: false, fullFromFs: false, mode: 'off', place: null, siteBg: false,
+    sideW: 44, fontScale: 1, // 歌詞欄の幅（画面幅の %）と文字の倍率。保存される
     active: -2, raf: 0, tick: 0, blobTick: -99, lastDrawn: -1, wasPaused: null,
     browsing: false, browseShift: 0, browseTimer: 0, loading: null, loadedId: null,
   };
@@ -113,8 +152,7 @@
   sheet.replaceSync(globalThis.YTL_CSS);
   shadow.adoptedStyleSheets = [sheet];
 
-  const blobs = ['b1', 'b2', 'b3'].map((c) => h('canvas', { class: 'blob ' + c, width: '16', height: '16' }));
-  const blobCtx = blobs.map((c) => c.getContext('2d'));
+  const panelBlobs = makeBlobs();
   const mirror = h('canvas', { class: 'mirror' });
   const titleEl = h('div', { class: 't' });
   const artistEl = h('div', { class: 'a' });
@@ -133,6 +171,7 @@
   const scaleHint = h('div', { class: 'hint' });
   const scaleRange = h('input', { type: 'range', min: '-6', max: '6', step: '0.05', value: '0', oninput: (e) => setScale(2 ** (+e.target.value / 12), false), onchange: (e) => e.target.blur() });
   const offVal = h('span', { class: 'val' });
+  const sizeVal = h('span', { class: 'val' });
   const btn = (label, onclick, title) => h('button', { class: 'btn', onclick, ...(title ? { title } : {}) }, label);
   const sec = (label, sub, val, ...rest) =>
     h('div', { class: 'sec' }, h('div', { class: 'head' }, h('span', {}, label, sub ? h('small', {}, sub) : null), val), ...rest);
@@ -144,6 +183,13 @@
     sec('動画の速さ', 'slowed / sped up', scaleVal,
       h('div', { class: 'row' }, scaleRange, btn('自動', autoScale, '歌詞データと動画の長さの比から推定'), btn('1x', () => setScale(1, false))),
       scaleHint),
+    sec('大きさ', '', sizeVal,
+      h('div', { class: 'row' },
+        btn('動画を大きく', () => setSideW(S.sideW - 4), '歌詞欄を狭くして、そのぶん動画を大きくする'),
+        btn('歌詞欄を広く', () => setSideW(S.sideW + 4), '歌詞欄を広げて、そのぶん動画を小さくする')),
+      h('div', { class: 'row' },
+        btn('文字 −', () => setFont(S.fontScale - 0.1)), btn('文字 ＋', () => setFont(S.fontScale + 0.1)),
+        btn('元に戻す', () => { setSideW(SIDE_W); setFont(1); }))),
     sec('歌詞のタイミング', '', offVal,
       h('div', { class: 'row' },
         btn('−0.5', () => setOffset(S.offset - 0.5)), btn('−0.1', () => setOffset(S.offset - 0.1)), btn('0', () => setOffset(0)),
@@ -166,7 +212,7 @@
   const rightCol = h('div', { class: 'right' }, lyricsBox, status);
 
   const ov = h('div', { class: 'ov' },
-    h('div', { class: 'bgw' }, ...blobs), h('div', { class: 'shade' }),
+    h('div', { class: 'bgw' }, ...panelBlobs.map((b) => b.el)), h('div', { class: 'shade' }),
     h('div', { class: 'left' },
       h('div', { class: 'col' },
         h('div', { class: 'art' }, mirror),
@@ -191,6 +237,14 @@
       iconButton('close', 'circ only-side', '歌詞を閉じる (Shift+L)', () => setSide(false))),
     optSheet, drawer);
   shadow.append(ov);
+
+  // ページ全体の背景。ytd-app の奥（z-index:-1）に敷き、YouTube 側の背景は page.css で透明にする
+  const siteBlobs = makeBlobs();
+  const bgHost = h('div', { id: 'ytl-bg' });
+  bgHost.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;display:none;';
+  const bgShadow = bgHost.attachShadow({ mode: 'open' });
+  bgShadow.adoptedStyleSheets = [sheet];
+  bgShadow.append(h('div', { class: 'site' }, h('div', { class: 'bgw' }, ...siteBlobs.map((b) => b.el)), h('div', { class: 'shade' })));
 
   const mctx = mirror.getContext('2d');
 
@@ -306,7 +360,27 @@
     showRepeat();
     savePrefs();
   }
-  const savePrefs = () => chrome.storage.local.set({ prefs: { repeat: S.repeat, side: S.side } });
+  const savePrefs = () => chrome.storage.local.set({ prefs: { repeat: S.repeat, side: S.side, sideW: S.sideW, fontScale: S.fontScale } });
+
+  // ---------- 大きさ（歌詞欄の幅 ⇔ 動画の大きさ、文字の倍率） ----------
+  const SIDE_W = 44;
+  function setSideW(n) {
+    S.sideW = clamp(n, 32, 60);
+    applySizes();
+    savePrefs();
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); // プレイヤーに大きさを測り直させる
+  }
+  function setFont(x) {
+    S.fontScale = clamp(Math.round(x * 10) / 10, 0.7, 1.6);
+    applySizes();
+    savePrefs();
+  }
+  function applySizes() {
+    const root = document.documentElement.style;
+    if (root.getPropertyValue('--ytl-side-vw') !== S.sideW + 'vw') root.setProperty('--ytl-side-vw', S.sideW + 'vw');
+    ov.style.setProperty('--fs', String(S.fontScale));
+    sizeVal.textContent = `歌詞欄 ${S.sideW}% · 文字 ${Math.round(S.fontScale * 100)}%`;
+  }
   function showRepeat() {
     repeatBtn.replaceChildren(icon(S.repeat ? 'repeat1' : 'repeat'));
     repeatBtn.classList.toggle('on', S.repeat);
@@ -344,7 +418,7 @@
     if (v.paused && v.currentTime === S.lastDrawn) return;
     S.lastDrawn = v.currentTime;
     const vw = v.videoWidth, vh = v.videoHeight;
-    const w = Math.round(mirror.clientWidth * devicePixelRatio);
+    const w = S.mode === 'full' ? Math.round(mirror.clientWidth * devicePixelRatio) : 0;
     const ht = Math.round(mirror.clientHeight * devicePixelRatio);
     if (w && ht) {
       if (mirror.width !== w || mirror.height !== ht) { mirror.width = w; mirror.height = ht; }
@@ -354,12 +428,12 @@
       mctx.fillRect(0, 0, w, ht);
       mctx.drawImage(v, (w - dw) / 2, (ht - dh) / 2, dw, dh);
     }
-    // 背景の 3 つのにじみには映像の別々の部分を使い、色に変化をつける
+    // 背景のにじみは 1 秒に 6 回ほど描き直せば十分。見えている側（ページ全体 or パネル）だけ描く
     if (v.paused || S.tick - S.blobTick >= 10) {
       S.blobTick = S.tick;
-      blobCtx[0].drawImage(v, 0, 0, vw, vh, 0, 0, 16, 16);
-      blobCtx[1].drawImage(v, 0, 0, vw / 2, vh, 0, 0, 16, 16);
-      blobCtx[2].drawImage(v, vw / 2, vh / 3, vw / 2, (vh * 2) / 3, 0, 0, 16, 16);
+      tinyCtx.drawImage(v, 0, 0, tiny.width, tiny.height);
+      if (S.siteBg && S.mode !== 'full') paintBlobs(siteBlobs);
+      if (S.mode === 'full' || !S.siteBg) paintBlobs(panelBlobs);
     }
   }
 
@@ -679,6 +753,18 @@
       requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     }
 
+    // 背景をページ全体に広げる（ダークテーマのときだけ。ライトテーマでは YouTube の黒い文字が読めなくなる）
+    const siteBg = wide && document.documentElement.hasAttribute('dark');
+    if (siteBg !== S.siteBg) {
+      S.siteBg = siteBg;
+      document.documentElement.toggleAttribute('data-ytl-bg', siteBg);
+      bgHost.style.display = siteBg ? 'block' : 'none';
+      ov.classList.toggle('clear', siteBg);
+      S.lastDrawn = -1;
+    }
+    if (siteBg && !bgHost.isConnected) document.body.prepend(bgHost);
+    if (wide) applySizes();
+
     let mode = 'off', place = null;
     if (S.full) {
       mode = 'full';
@@ -820,6 +906,9 @@
   chrome.storage.local.get('prefs').then((o) => {
     S.repeat = !!o.prefs?.repeat;
     S.side = !!o.prefs?.side;
+    S.sideW = o.prefs?.sideW || SIDE_W;
+    S.fontScale = o.prefs?.fontScale || 1;
+    applySizes();
     if (S.repeat && S.video) S.video.loop = true;
     showRepeat();
     apply();
