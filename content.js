@@ -74,6 +74,15 @@
   tiny.width = 48;
   tiny.height = 27;
   const tinyCtx = tiny.getContext('2d');
+  // まだ何も再生していないときの色（深い青・紫・緑のにじみ）
+  {
+    const g = tinyCtx.createLinearGradient(0, 0, tiny.width, tiny.height);
+    g.addColorStop(0, '#1d2b64');
+    g.addColorStop(0.5, '#5b2a6e');
+    g.addColorStop(1, '#1f5c5a');
+    tinyCtx.fillStyle = g;
+    tinyCtx.fillRect(0, 0, tiny.width, tiny.height);
+  }
 
   function makeBlobs() {
     return ['b1', 'b2', 'b3'].map((c) => {
@@ -110,6 +119,8 @@
     // side: おすすめ欄の位置のパネルを出すか（保存される） / full: 全画面表示中か
     side: false, full: false, fullFromFs: false, mode: 'off', place: null, siteBg: false,
     sideW: 44, fontScale: 1, // 歌詞欄の幅（画面幅の %）と文字の倍率。保存される
+    bgOn: true, // 動画の色をページ全体の背景にするか。保存される
+    bgSource: null, bgSettle: 0, bgDirty: true, hoverImg: null,
     active: -2, raf: 0, tick: 0, blobTick: -99, lastDrawn: -1, wasPaused: null,
     browsing: false, browseShift: 0, browseTimer: 0, loading: null, loadedId: null,
   };
@@ -172,6 +183,8 @@
   const scaleRange = h('input', { type: 'range', min: '-6', max: '6', step: '0.05', value: '0', oninput: (e) => setScale(2 ** (+e.target.value / 12), false), onchange: (e) => e.target.blur() });
   const offVal = h('span', { class: 'val' });
   const sizeVal = h('span', { class: 'val' });
+  const bgVal = h('span', { class: 'val' });
+  const bgBtn = h('button', { class: 'btn', onclick: () => setBgOn(!S.bgOn) });
   const btn = (label, onclick, title) => h('button', { class: 'btn', onclick, ...(title ? { title } : {}) }, label);
   const sec = (label, sub, val, ...rest) =>
     h('div', { class: 'sec' }, h('div', { class: 'head' }, h('span', {}, label, sub ? h('small', {}, sub) : null), val), ...rest);
@@ -190,6 +203,9 @@
       h('div', { class: 'row' },
         btn('文字 −', () => setFont(S.fontScale - 0.1)), btn('文字 ＋', () => setFont(S.fontScale + 0.1)),
         btn('元に戻す', () => { setSideW(SIDE_W); setFont(1); }))),
+    sec('背景', 'ダークテーマのとき', bgVal,
+      h('div', { class: 'row' }, bgBtn),
+      h('div', { class: 'hint' }, '動画の色をにじませて、どのページでも背景に敷きます。ホームではサムネイルにマウスを乗せるとその色に変わります')),
     sec('歌詞のタイミング', '', offVal,
       h('div', { class: 'row' },
         btn('−0.5', () => setOffset(S.offset - 0.5)), btn('−0.1', () => setOffset(S.offset - 0.1)), btn('0', () => setOffset(0)),
@@ -360,7 +376,19 @@
     showRepeat();
     savePrefs();
   }
-  const savePrefs = () => chrome.storage.local.set({ prefs: { repeat: S.repeat, side: S.side, sideW: S.sideW, fontScale: S.fontScale } });
+  const savePrefs = () => chrome.storage.local.set({ prefs: { repeat: S.repeat, side: S.side, sideW: S.sideW, fontScale: S.fontScale, bg: S.bgOn } });
+
+  // ---------- 背景のオン / オフ ----------
+  function setBgOn(on) {
+    S.bgOn = on;
+    showBg();
+    savePrefs();
+    apply();
+  }
+  function showBg() {
+    bgVal.textContent = S.bgOn ? 'オン' : 'オフ';
+    bgBtn.textContent = S.bgOn ? 'オフにする' : 'オンにする';
+  }
 
   // ---------- 大きさ（歌詞欄の幅 ⇔ 動画の大きさ、文字の倍率） ----------
   const SIDE_W = 44;
@@ -413,28 +441,53 @@
     v.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * v.duration;
   }
 
-  function drawVideo(v) {
+  // 全画面表示の左に出す映像
+  function drawMirror(v) {
     if (v.readyState < 2 || !v.videoWidth) return;
     if (v.paused && v.currentTime === S.lastDrawn) return;
     S.lastDrawn = v.currentTime;
     const vw = v.videoWidth, vh = v.videoHeight;
-    const w = S.mode === 'full' ? Math.round(mirror.clientWidth * devicePixelRatio) : 0;
+    const w = Math.round(mirror.clientWidth * devicePixelRatio);
     const ht = Math.round(mirror.clientHeight * devicePixelRatio);
-    if (w && ht) {
-      if (mirror.width !== w || mirror.height !== ht) { mirror.width = w; mirror.height = ht; }
-      const k = Math.min(w / vw, ht / vh);
-      const dw = vw * k, dh = vh * k;
-      mctx.fillStyle = '#000';
-      mctx.fillRect(0, 0, w, ht);
-      mctx.drawImage(v, (w - dw) / 2, (ht - dh) / 2, dw, dh);
+    if (!w || !ht) return;
+    if (mirror.width !== w || mirror.height !== ht) { mirror.width = w; mirror.height = ht; }
+    const k = Math.min(w / vw, ht / vh);
+    const dw = vw * k, dh = vh * k;
+    mctx.fillStyle = '#000';
+    mctx.fillRect(0, 0, w, ht);
+    mctx.drawImage(v, (w - dw) / 2, (ht - dh) / 2, dw, dh);
+  }
+
+  // ---------- 背景の色の元 ----------
+  // 再生中の動画（ホームの小さいプレイヤーも含む）＞ 動画ページ以外でマウスを乗せたサムネイル ＞ 最後に使った色
+  function pickBgSource(v) {
+    const vOk = v && v.readyState >= 2 && v.videoWidth > 0;
+    const onWatch = location.pathname === '/watch';
+    if (vOk && !v.paused) return v;
+    if (!onWatch && S.hoverImg) return S.hoverImg;
+    if (vOk && onWatch) return v;
+    return S.bgSource;
+  }
+
+  // 1 秒に 6 回ほど、見えている側（ページ全体 or パネル）のにじみを描き直す。
+  // 新しい色は前の色に少しずつ重ねて溶け込ませ、場面転換やサムネイル間の移動でもパッと変わらないようにする
+  function updateBg(v) {
+    const targets = [];
+    if (S.siteBg && S.mode !== 'full') targets.push(siteBlobs);
+    if (S.mode === 'full' || (S.mode !== 'off' && !S.siteBg)) targets.push(panelBlobs);
+    if (!targets.length) return;
+    const src = pickBgSource(v);
+    const live = src && src === v && !v.paused;
+    if (src !== S.bgSource) { S.bgSource = src; S.bgSettle = 14; }
+    if (!live && S.bgSettle <= 0 && !S.bgDirty) return; // 止まっている元は、溶け込み終わったら描き直さない
+    S.bgDirty = false;
+    if (src) {
+      tinyCtx.globalAlpha = live ? 0.35 : 0.25;
+      try { tinyCtx.drawImage(src, 0, 0, tiny.width, tiny.height); } catch {}
+      tinyCtx.globalAlpha = 1;
+      S.bgSettle--;
     }
-    // 背景のにじみは 1 秒に 6 回ほど描き直せば十分。見えている側（ページ全体 or パネル）だけ描く
-    if (v.paused || S.tick - S.blobTick >= 10) {
-      S.blobTick = S.tick;
-      tinyCtx.drawImage(v, 0, 0, tiny.width, tiny.height);
-      if (S.siteBg && S.mode !== 'full') paintBlobs(siteBlobs);
-      if (S.mode === 'full' || !S.siteBg) paintBlobs(panelBlobs);
-    }
+    targets.forEach(paintBlobs);
   }
 
   function updateTime(v) {
@@ -628,10 +681,14 @@
 
   function frame() {
     S.raf = requestAnimationFrame(frame);
-    const v = S.video;
-    if (!v) return;
     S.tick++;
-    drawVideo(v);
+    const v = S.video;
+    if (S.tick - S.blobTick >= 10) {
+      S.blobTick = S.tick;
+      updateBg(v);
+    }
+    if (!v || S.mode === 'off') return;
+    if (S.mode === 'full') drawMirror(v);
     if (S.tick % 4 === 0) updateTime(v);
     if (!S.synced || !S.items.length || S.player?.classList.contains('ad-showing')) return;
     // currentTime は動画内の時刻なので、再生速度を変えても歌詞はそのまま追従する
@@ -778,7 +835,13 @@
     else if (location.pathname === '/watch') setSide(!S.side);
   }
 
-  // 今の状態に合わせてパネルを置き直す（何度呼んでも、変化がなければ何もしない）
+  // 描画ループは、背景かパネルのどちらかが見えている間だけ回す
+  function runLoop(on) {
+    if (on && !S.raf) S.raf = requestAnimationFrame(frame);
+    else if (!on && S.raf) { cancelAnimationFrame(S.raf); S.raf = 0; }
+  }
+
+  // 今の状態に合わせて背景とパネルを置き直す（何度呼んでも、変化がなければ何もしない）
   function apply() {
     const flexy = document.querySelector('ytd-watch-flexy');
     const onWatch = location.pathname === '/watch' && !!flexy && !flexy.hidden;
@@ -790,17 +853,19 @@
       requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
     }
 
-    // 背景をページ全体に広げる（ダークテーマのときだけ。ライトテーマでは YouTube の黒い文字が読めなくなる）
-    const siteBg = wide && document.documentElement.hasAttribute('dark');
+    // 背景はどのページでも、歌詞を出していなくても敷く
+    // （ダークテーマのときだけ。ライトテーマでは YouTube の黒い文字が読めなくなる）
+    const siteBg = S.bgOn && document.documentElement.hasAttribute('dark');
     if (siteBg !== S.siteBg) {
       S.siteBg = siteBg;
       document.documentElement.toggleAttribute('data-ytl-bg', siteBg);
       bgHost.style.display = siteBg ? 'block' : 'none';
       ov.classList.toggle('clear', siteBg);
-      S.lastDrawn = -1;
+      S.bgDirty = true;
     }
-    if (siteBg && !bgHost.isConnected) document.body.prepend(bgHost);
+    if (siteBg && !bgHost.isConnected && document.body) document.body.prepend(bgHost);
     if (wide) applySizes();
+    runLoop(siteBg || S.full || wide);
 
     let mode = 'off', place = null;
     if (S.full) {
@@ -818,8 +883,6 @@
         host.style.display = 'none';
         closeSheet();
         closeDrawer();
-        cancelAnimationFrame(S.raf);
-        S.raf = 0;
       }
       return;
     }
@@ -837,9 +900,8 @@
       if (!S.id) resetLyrics('動画を再生すると歌詞を探します');
       S.wasPaused = null;
       S.lastDrawn = -1;
-      cancelAnimationFrame(S.raf);
-      S.raf = requestAnimationFrame(frame);
     }
+    S.bgDirty = true;
     if (S.id && S.loadedId !== S.id) load(S.id);
     requestAnimationFrame(() => layout(true));
   }
@@ -946,7 +1008,9 @@
     S.side = !!o.prefs?.side;
     S.sideW = o.prefs?.sideW || SIDE_W;
     S.fontScale = o.prefs?.fontScale || 1;
+    S.bgOn = o.prefs?.bg !== false;
     applySizes();
+    showBg();
     if (S.repeat && S.video) S.video.loop = true;
     showRepeat();
     apply();
@@ -954,7 +1018,23 @@
   showRepeat();
   showOffset();
   showScale();
+  // ホームなどでサムネイルにマウスを少し乗せたら、その色を背景にする
+  const CARD = 'yt-lockup-view-model, ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, ytm-shorts-lockup-view-model';
+  let hoverTimer = 0;
+  document.addEventListener('mouseover', (e) => {
+    if (!S.siteBg || location.pathname === '/watch') return;
+    const card = e.target.closest?.(CARD);
+    if (!card) return;
+    const img = [...card.querySelectorAll('img')].find((i) => /ytimg\.com/.test(i.currentSrc || i.src) && i.complete && i.naturalWidth > 0);
+    if (!img || img === S.hoverImg) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => (S.hoverImg = img), 180);
+  }, { passive: true });
+
   setInterval(poll, 1000);
-  document.addEventListener('yt-navigate-finish', () => setTimeout(poll, 300));
+  document.addEventListener('yt-navigate-finish', () => {
+    S.hoverImg = null; // ページを移ったら、前のページで乗せたサムネイルの色は使わない
+    setTimeout(poll, 300);
+  });
   poll();
 })();
