@@ -478,10 +478,28 @@
         it.dots = [h('i'), h('i'), h('i')];
         return track.appendChild(h('div', { class: 'line interlude' }, h('span', { class: 'dots' }, ...it.dots)));
       }
-      it.unitEls = (it.units || [{ text: it.text }]).map((u) => h('span', { class: 'u' }, u.text));
-      it.pos = null;
-      it.on = null;
-      const el = h('div', { class: 'line' + (it.gapBefore ? ' gap' : ''), onclick: (e) => onLineClick(e, i) }, ...it.unitEls);
+      const el = h('div', { class: 'line' + (it.gapBefore ? ' gap' : ''), onclick: (e) => onLineClick(e, i) });
+      it.pos = it.lift = null;
+      if (!it.units) {
+        // タイミングなしの歌詞は 1 行まるごと普通の文字として出す
+        it.unitEls = [h('span', { class: 'u plainu' }, it.text)];
+        el.append(...it.unitEls);
+        return track.appendChild(el);
+      }
+      // 一文字ずつ span にし、改行してよい切れ目ごとに「まとまり」に入れる（単語の途中で改行しない）
+      it.unitEls = [];
+      let group = null, gid = null;
+      for (const u of it.units) {
+        if (!group || u.g !== gid) {
+          group = el.appendChild(h('span', { class: 'g' }));
+          gid = u.g;
+        }
+        it.unitEls.push(group.appendChild(h('span', { class: 'u' }, u.text)));
+        if (u.after) {
+          el.append(u.after); // 空白はまとまりの外に置いて、そこで改行できるようにする
+          group = null;
+        }
+      }
       return track.appendChild(el);
     });
     requestAnimationFrame(() => layout(true));
@@ -548,9 +566,10 @@
     if (prev >= 0 && S.items[prev]) {
       const it = S.items[prev];
       S.els[prev].classList.remove('active');
-      it.unitEls?.forEach((u) => { u.style.backgroundPositionX = ''; u.classList.remove('on'); });
+      // 白に戻して元の高さへ（戻りは CSS の transition でゆっくり下ろす）
+      it.unitEls?.forEach((u) => { u.style.backgroundPositionX = ''; u.style.transform = ''; });
       it.dots?.forEach((d) => (d.style.opacity = ''));
-      it.pos = it.on = null;
+      it.pos = it.lift = null;
     }
     if (S.browsing) S.browseShift += topOf(idx) - topOf(prev);
     S.active = idx;
@@ -559,7 +578,7 @@
       const it = S.items[idx];
       if (it.unitEls) {
         it.pos = it.unitEls.map(() => -1);
-        it.on = it.unitEls.map(() => false);
+        it.lift = it.unitEls.map(() => 0);
       }
     }
     layout();
@@ -580,14 +599,19 @@
         it.pos[k] = pos;
         el.style.backgroundPositionX = pos + '%';
       }
-      // 歌い始めた文字から浮かび上がらせる
-      const on = f > 0;
-      if (it.on[k] !== on) {
-        it.on[k] = on;
-        el.classList.toggle('on', on);
+      // 歌い始めた文字から、少し長めの時間をかけてなめらかに浮かび上がらせる。
+      // 隣の文字の浮き上がりと重なるので、行全体では波のように上がっていく
+      const g = clamp((t - u.t0) / Math.max(LIFT_SEC, u.t1 - u.t0), 0, 1);
+      const lift = Math.round(easeInOut(g) * 1000) / 1000;
+      if (it.lift[k] !== lift) {
+        it.lift[k] = lift;
+        el.style.transform = `translate3d(0, ${(-LIFT_EM * lift).toFixed(4)}em, 0)`;
       }
     });
   }
+  const LIFT_SEC = 0.6;
+  const LIFT_EM = 0.07;
+  const easeInOut = (x) => 0.5 - Math.cos(Math.PI * x) / 2;
 
   function frame() {
     S.raf = requestAnimationFrame(frame);
@@ -793,6 +817,7 @@
     host.style.cssText = HOST_CSS[mode];
     ov.classList.toggle('full', mode === 'full');
     ov.classList.toggle('side', mode !== 'full');
+    ov.classList.toggle('below', mode === 'below');
     const wasOff = S.mode === 'off';
     S.mode = mode;
     if (wasOff) {

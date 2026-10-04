@@ -13,6 +13,11 @@ ytd-watch-flexy.ytl-side #related {
 html[data-ytl-bg] ytd-app {
   background: transparent !important;
 }
+/* アンビエントモード（プレイヤー周りの光）は、透明な背景の上だと黒い四角になって見えるので隠す */
+html[data-ytl-bg] #cinematics,
+html[data-ytl-bg] #cinematics-full-bleed-container {
+  display: none !important;
+}
 html[data-ytl-bg] ytd-masthead #background {
   background: rgba(15, 15, 15, .45) !important;
   -webkit-backdrop-filter: blur(24px) saturate(1.4);

@@ -50,7 +50,9 @@
   const CJK = new RegExp(`[${CJK_CHARS}]`);
   const KANJI = /[々㐀-䶿一-鿿豈-﫿]/;
   const SMALL_KANA = /[ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ]/;
-  const TOKEN = new RegExp(`[${CJK_CHARS}]|[^\\s${CJK_CHARS}]+|\\s+`, 'gu');
+  // 和文の句読点・全角記号も 1 文字ずつ（英字とくっついて 1 単語扱いにならないように）
+  const CJK_PUNCT = '\\u3000-\\u3004\\u3006-\\u303f\\uff01-\\uff65';
+  const TOKEN = new RegExp(`[${CJK_CHARS}]|[${CJK_PUNCT}]|[^\\s${CJK_CHARS}${CJK_PUNCT}]+|\\s+`, 'gu');
 
   // 歌うのにかかる時間の目安（拍の重み）
   function weight(tok) {
@@ -73,6 +75,40 @@
       else units.push({ text: tok, w });
     }
     return units;
+  }
+
+  // ---------- 一文字ずつに分ける ----------
+  // 塗りと浮かび上がりは一文字単位。ただし改行してよい位置は崩さないよう、文字を「まとまり（g）」に入れる。
+  //  - 英字などの単語は 1 つのまとまり（途中で改行しない）
+  //  - 日本語は 1 文字ずつだが、行頭に来てはいけない文字（、。」っー など）は前に、
+  //    行末に来てはいけない文字（「（ など）は後ろにくっつける
+  const NO_START = /^[、。，．・：；？！゛゜ー〜～…‥ヽヾゝゞ々〻）〕］｝〉》」』】〙〗〟’”｠»ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ)\]},.!?:;%]$/;
+  const NO_END = /^[（〔［｛〈《「『【〘〖〝‘“｟«(\[{]$/;
+
+  function toChars(units) {
+    const out = [];
+    let g = -1;
+    let joinNext = false;
+    for (const u of units) {
+      const core = u.text.replace(/\s+$/, '');
+      const after = u.text.slice(core.length);
+      const chars = [...core];
+      // 単語の時間は文字（記号は軽め）に按分する
+      const cw = chars.map((c) => (/[\p{L}\p{N}]/u.test(c) ? 1 : 0.15));
+      const total = cw.reduce((a, b) => a + b, 0) || 1;
+      let acc = 0;
+      chars.forEach((c, k) => {
+        const prev = out[out.length - 1];
+        const attach = k > 0 || joinNext || (prev && !prev.after && NO_START.test(c));
+        if (!attach) g++;
+        const t0 = u.t0 + (acc / total) * (u.t1 - u.t0);
+        acc += cw[k];
+        out.push({ text: c, t0, t1: u.t0 + (acc / total) * (u.t1 - u.t0), g, after: '' });
+      });
+      joinNext = chars.length === 1 && NO_END.test(chars[0]) && !after;
+      if (out.length) out[out.length - 1].after += after;
+    }
+    return out;
   }
 
   // ---------- タイムライン ----------
@@ -117,6 +153,7 @@
         }
         fillEnd = r.t + span;
       }
+      units = toChars(units);
 
       const prev = items[items.length - 1];
       const gapBefore = breakNext || (prev?.kind === 'line' && r.t - prev.fillEnd >= PAUSE_GAP);
@@ -250,7 +287,7 @@
       .sort((a, b) => b.s - a.s);
   }
 
-  const api = { parseLRC, splitUnits, buildTimeline, plainItems, findActive, guessFromTitle, cleanAuthor, sim, score, rank, durationPenalty, estimateScale };
+  const api = { parseLRC, splitUnits, toChars, buildTimeline, plainItems, findActive, guessFromTitle, cleanAuthor, sim, score, rank, durationPenalty, estimateScale };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.YTL = api;
 })(globalThis);

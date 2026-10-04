@@ -135,21 +135,29 @@ button.icon:active { transform: scale(.9); }
 }
 /* パネルの幅に合わせて大きくする（1 行に日本語 13 字前後） */
 .ov.side .line { font-size: clamp(calc(22px * var(--fs, 1)), calc(7.2cqw * var(--fs, 1)), calc(58px * var(--fs, 1))); }
+/* 1 列表示で動画の下に置いたときは横に広く背が低いので、高さも見て控えめにする */
+.ov.below .right { container-type: size; }
+.ov.below .line { font-size: clamp(calc(20px * var(--fs, 1)), calc(min(4cqw, 8.5cqh) * var(--fs, 1)), calc(40px * var(--fs, 1))); }
 .line:hover { background: rgba(255,255,255,.07); }
 .line.active { --s: 1; opacity: 1; filter: none; transition: transform .8s var(--ease) var(--delay, 0ms), opacity 0s, filter .25s ease; }
 .line.gap { margin-top: .7em; }
 
-/* 灰色→白の塗り。位置 0% で白、100% で灰色。非アクティブ行は白のまま行ごと暗くする */
+/* 改行してよい切れ目ごとのまとまり。中では改行しない（単語の途中で折り返さない） */
+.g { display: inline-block; white-space: nowrap; }
+
+/* 一文字ずつの塗り。位置 0% で白、100% で灰色。非アクティブ行は白のまま行ごと暗くする。
+   浮かび上がりは transform で動かす（top だとピクセル単位でガクガクする） */
 .u {
-  position: relative; top: 0;
+  display: inline-block;
   background-image: linear-gradient(90deg, #fff 45%, rgba(255,255,255,var(--dim)) 55%);
   background-size: 225% 100%; background-repeat: no-repeat; background-position: 0% 0;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  transition: top .7s cubic-bezier(.2, .8, .3, 1), filter .7s ease;
+  transition: transform .9s cubic-bezier(.3, .7, .25, 1); /* 行が終わったらゆっくり下ろす */
 }
-/* 歌われた文字は少し浮かび上がって、うっすら光る */
-.line.active .u.on { top: -.07em; filter: drop-shadow(0 0 .16em rgba(255,255,255,.3)); }
+/* 歌っている行は毎フレーム JS で高さを決めるので transition は切り、合成レイヤーにして小数点以下までなめらかに動かす */
+.line.active .u { transition: none; will-change: transform; }
+.u.plainu { display: inline; }
 
 /* 間奏の「• • •」。非アクティブ時は見えない空き（節の区切り）になる */
 .line.interlude { height: 1.3em; display: flex; align-items: center; opacity: 0; cursor: default; }
