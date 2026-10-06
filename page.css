@@ -29,3 +29,98 @@ html[data-ytl-bg] ytd-masthead #background {
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
 }
+
+/* ===== ロゴの文字に流れるグラデーション（#ytl-grad は skin.js が置く） =====
+   赤い再生マークと中の三角は fill 属性を持っているので、持っていない文字の部分だけ塗る */
+html[data-ytl-logo] ytd-topbar-logo-renderer svg g[id*="paths"] path,
+html[data-ytl-logo] ytd-topbar-logo-renderer svg path:not([fill]) {
+  fill: url(#ytl-grad) !important;
+}
+html[data-ytl-logo] ytd-topbar-logo-renderer #country-code {
+  background-image: linear-gradient(90deg, #ff4e8a, #ffb84d, #7cf0ff, #a77bff, #ff4e8a);
+  background-size: 60px 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  animation: ytl-flow 5s linear infinite;
+}
+@keyframes ytl-flow { to { background-position: 60px 0; } }
+
+/* ===== ボタンをリキッドグラス風に（ダークテーマのとき） =====
+   半透明の板＋奥のぼかし、縁の光の反射、マウスの位置（--ytl-mx/my は skin.js）に当たる光 */
+html[dark][data-ytl-glass] :is(
+  .ytSpecButtonShapeNextTonal,
+  .ytChipShapeChip:not(.ytChipShapeActive),
+  .ytSearchboxComponentSearchButton,
+  .ytSearchboxComponentInputBox,
+  #movie_player .ytp-chrome-bottom :is(.ytp-play-button, .ytp-volume-area, .ytp-time-wrapper, .ytp-chapter-title, .ytp-right-controls)
+) {
+  background:
+    radial-gradient(120px circle at var(--ytl-mx, 50%) var(--ytl-my, -60%), rgba(255,255,255,.06), transparent 70%),
+    linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04)) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.08);
+  backdrop-filter: blur(12px) saturate(1.8) brightness(1.08);
+  box-shadow:
+    inset 0 1px .5px rgba(255,255,255,.5),
+    inset 0 -1px .5px rgba(255,255,255,.12),
+    inset 0 0 0 .5px rgba(255,255,255,.16),
+    inset 0 -10px 18px -12px rgba(255,255,255,.28),
+    0 4px 14px rgba(0,0,0,.22) !important;
+}
+html[dark][data-ytl-glass] :is(.ytSpecButtonShapeNextTonal, .ytChipShapeChip:not(.ytChipShapeActive), .ytSearchboxComponentSearchButton):hover {
+  background:
+    radial-gradient(120px circle at var(--ytl-mx, 50%) var(--ytl-my, 0%), rgba(255,255,255,.3), transparent 70%),
+    linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.07)) !important;
+}
+/* 白いボタン（チャンネル登録、選択中のカテゴリ）は白いすりガラスに */
+html[dark][data-ytl-glass] :is(.ytSpecButtonShapeNextFilled.ytSpecButtonShapeNextMono, .ytChipShapeActive) {
+  background:
+    radial-gradient(120px circle at var(--ytl-mx, 50%) var(--ytl-my, -60%), rgba(255,255,255,.9), transparent 70%),
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(222,222,230,.84)) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow:
+    inset 0 1px .5px rgba(255,255,255,1),
+    inset 0 -1px 1px rgba(0,0,0,.12),
+    inset 0 -10px 16px -12px rgba(120,120,160,.35),
+    0 4px 14px rgba(0,0,0,.25) !important;
+}
+
+/* ===== グッド／バッドのアイコンと演出（アイコンは skin.js が差し込む） ===== */
+html[data-ytl-like] :is(like-button-view-model, dislike-button-view-model) .ytSpecButtonShapeNextIcon > :not(.ytl-thumb) {
+  display: none !important;
+}
+html:not([data-ytl-like]) .ytl-thumb {
+  display: none !important;
+}
+.ytl-thumb {
+  display: block;
+  width: 24px;
+  height: 24px;
+  overflow: visible;
+  transform-origin: 50% 60%;
+}
+.ytl-thumb path {
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+button[aria-pressed="true"] .ytl-thumb.like path {
+  fill: url(#ytl-grad-s);
+  stroke: url(#ytl-grad-s);
+}
+button[aria-pressed="true"] .ytl-thumb.dislike path {
+  fill: currentColor;
+}
+#ytl-fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483646;
+}
+#ytl-fx > * {
+  position: absolute;
+  pointer-events: none;
+  will-change: transform, opacity;
+}

@@ -56,6 +56,22 @@ button.icon:active { transform: scale(.9); }
 .circ { width: 34px; height: 34px; padding: 8px; background: rgba(255,255,255,.14); }
 .circ:hover { background: rgba(255,255,255,.24); }
 
+/* リキッドグラス（ポップアップの「ボタンをガラス風に」がオンのとき）：YouTube 側のボタンとそろえる */
+.ov.glass :is(.circ, .btn, .pill, .more, .x, .wide, .repeat.on) {
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.05));
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.08);
+  backdrop-filter: blur(12px) saturate(1.8) brightness(1.08);
+  box-shadow:
+    inset 0 1px .5px rgba(255,255,255,.5),
+    inset 0 -1px .5px rgba(255,255,255,.12),
+    inset 0 0 0 .5px rgba(255,255,255,.16),
+    inset 0 -10px 18px -12px rgba(255,255,255,.28),
+    0 4px 14px rgba(0,0,0,.22);
+}
+.ov.glass :is(.circ, .btn, .pill, .more, .x, .wide):hover {
+  background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,.09));
+}
+
 /* ---- 左（全画面時）：映像・曲情報・再生操作 ---- */
 .left { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 6vh 3vw 6vh 5vw; }
 .col { width: 100%; max-width: 520px; margin: 0 auto; }

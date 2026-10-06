@@ -1018,6 +1018,22 @@
   showRepeat();
   showOffset();
   showScale();
+  // ポップアップでの切り替え（背景、ガラス風）を、開いているタブにすぐ反映する
+  const applyPanelSkin = (skin) => ov.classList.toggle('glass', skin?.glass !== false);
+  chrome.storage.local.get('skin').then((o) => applyPanelSkin(o.skin));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.skin) applyPanelSkin(changes.skin.newValue);
+    if (changes.prefs) {
+      const bg = changes.prefs.newValue?.bg !== false;
+      if (bg !== S.bgOn) {
+        S.bgOn = bg;
+        showBg();
+        apply();
+      }
+    }
+  });
+
   // ホームなどでサムネイルにマウスを少し乗せたら、その色を背景にする
   const CARD = 'yt-lockup-view-model, ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, ytm-shorts-lockup-view-model';
   let hoverTimer = 0;
