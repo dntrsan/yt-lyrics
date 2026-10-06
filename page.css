@@ -37,7 +37,7 @@ html[data-ytl-logo] ytd-topbar-logo-renderer svg path:not([fill]) {
   fill: url(#ytl-grad) !important;
 }
 html[data-ytl-logo] ytd-topbar-logo-renderer #country-code {
-  background-image: linear-gradient(90deg, #ff4e8a, #ffb84d, #7cf0ff, #a77bff, #ff4e8a);
+  background-image: linear-gradient(90deg, #ff1e3c, #ff5a26, #ff9a24, #ffc53d, #ff9a24, #ff5a26, #ff1e3c);
   background-size: 60px 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -101,17 +101,36 @@ html:not([data-ytl-like]) .ytl-thumb {
   transform-origin: 50% 60%;
 }
 .ytl-thumb path {
-  fill: transparent;
-  stroke: currentColor;
   stroke-width: 1.7;
   stroke-linejoin: round;
 }
-button[aria-pressed="true"] .ytl-thumb.like path {
+/* 輪郭と、下から満ちていく塗りの 2 枚重ね */
+.ytl-thumb .o path {
+  fill: none;
+  stroke: currentColor;
+}
+.ytl-thumb .f path {
+  fill: currentColor;
+  stroke: currentColor;
+}
+.ytl-thumb.like .f path,
+button[aria-pressed="true"] .ytl-thumb.like .o path {
   fill: url(#ytl-grad-s);
   stroke: url(#ytl-grad-s);
 }
-button[aria-pressed="true"] .ytl-thumb.dislike path {
-  fill: currentColor;
+button[aria-pressed="true"] .ytl-thumb.like .o path {
+  fill: none;
+}
+/* 塗りの高さ。押すと下から液体のように満ち、解除すると下へ抜けていく */
+.ytl-level {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  transition: transform .5s cubic-bezier(.3, .75, .2, 1);
+}
+button[aria-pressed="true"] .ytl-level {
+  transform: scaleY(1);
+  transition-delay: .06s;
 }
 #ytl-fx {
   position: fixed;
