@@ -30,21 +30,16 @@ html[data-ytl-bg] ytd-masthead #background {
   backdrop-filter: blur(24px) saturate(1.4);
 }
 
-/* ===== ロゴの文字に流れるグラデーション（#ytl-grad は skin.js が置く） =====
-   赤い再生マークと中の三角は fill 属性を持っているので、持っていない文字の部分だけ塗る */
-html[data-ytl-logo] ytd-topbar-logo-renderer svg g[id*="paths"] path,
-html[data-ytl-logo] ytd-topbar-logo-renderer svg path:not([fill]) {
-  fill: url(#ytl-grad) !important;
+/* チャンネルページ上部（アイコン・名前・タブ）も黒く塗られているので透明にして背景になじませる */
+html[data-ytl-bg] ytd-tabbed-page-header :is(#page-header-container, #page-header, #tabs-container, #tabs-inner-container) {
+  background: transparent !important;
 }
-html[data-ytl-logo] ytd-topbar-logo-renderer #country-code {
-  background-image: linear-gradient(90deg, #ff1e3c, #ff5a26, #ff9a24, #ffc53d, #ff9a24, #ff5a26, #ff1e3c);
-  background-size: 60px 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent !important;
-  animation: ytl-flow 5s linear infinite;
+/* タブの列は上に貼り付いたとき（content.js が data-ytl-stuck を付ける）だけ、上部バーと同じすりガラスに */
+html[data-ytl-bg] ytd-tabbed-page-header #tabs-container[data-ytl-stuck] {
+  background: rgba(15, 15, 15, .45) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
 }
-@keyframes ytl-flow { to { background-position: 60px 0; } }
 
 /* ===== ボタンをリキッドグラス風に（ダークテーマのとき） =====
    半透明の板＋奥のぼかし、縁の光の反射、マウスの位置（--ytl-mx/my は skin.js）に当たる光 */
@@ -112,14 +107,6 @@ html:not([data-ytl-like]) .ytl-thumb {
 .ytl-thumb .f path {
   fill: currentColor;
   stroke: currentColor;
-}
-.ytl-thumb.like .f path,
-button[aria-pressed="true"] .ytl-thumb.like .o path {
-  fill: url(#ytl-grad-s);
-  stroke: url(#ytl-grad-s);
-}
-button[aria-pressed="true"] .ytl-thumb.like .o path {
-  fill: none;
 }
 /* 塗りの高さ。押すと下から液体のように満ち、解除すると下へ抜けていく */
 .ytl-level {

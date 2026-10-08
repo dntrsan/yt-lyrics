@@ -1034,6 +1034,15 @@
     }
   });
 
+  // チャンネルページのタブ列は、上部バーの下に貼り付いたときだけすりガラスにする（普段は背景になじませる）
+  window.addEventListener('scroll', () => {
+    if (!S.siteBg) return;
+    const tabs = document.querySelector('ytd-tabbed-page-header #tabs-container');
+    if (!tabs) return;
+    const barBottom = document.getElementById('masthead-container')?.getBoundingClientRect().bottom ?? 56;
+    tabs.toggleAttribute('data-ytl-stuck', tabs.getBoundingClientRect().top <= barBottom + 1);
+  }, { passive: true });
+
   // ホームなどでサムネイルにマウスを少し乗せたら、その色を背景にする
   const CARD = 'yt-lockup-view-model, ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, ytm-shorts-lockup-view-model';
   let hoverTimer = 0;

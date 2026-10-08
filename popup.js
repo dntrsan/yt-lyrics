@@ -1,5 +1,5 @@
 // ポップアップのスイッチ。変更は chrome.storage 経由で、開いている YouTube のタブにすぐ反映される
-const DEFAULT_SKIN = { logo: true, glass: true, like: true };
+const DEFAULT_SKIN = { glass: true, like: true };
 
 (async () => {
   const { prefs = {}, skin = {} } = await chrome.storage.local.get(['prefs', 'skin']);

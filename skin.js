@@ -1,10 +1,8 @@
-// YouTube の見た目のカスタム：ロゴの流れるグラデーション、ボタンのリキッドグラス化、グッド／バッドの演出
+// YouTube の見た目のカスタム：ボタンのリキッドグラス化、グッド／バッドの演出
 // 設定は chrome.storage の skin（拡張機能のポップアップで切り替え）。見た目の大半は page.css 側
 (() => {
   'use strict';
-  const DEFAULT_SKIN = { logo: true, glass: true, like: true };
-  // 赤 → 赤みのオレンジ → オレンジ → 山吹色（流すときは往復させて、つなぎ目を作らない）
-  const PALETTE = ['#ff1e3c', '#ff5a26', '#ff9a24', '#ffc53d'];
+  const DEFAULT_SKIN = { glass: true, like: true };
   const NS = 'http://www.w3.org/2000/svg';
   const root = document.documentElement;
   let skin = { ...DEFAULT_SKIN };
@@ -15,19 +13,6 @@
     el.append(...kids);
     return el;
   };
-
-  // ---------- 流れるグラデーション（ロゴと、グッドしたアイコンの塗り） ----------
-  // userSpaceOnUse + repeat なので、文字ごとに切れずに 1 本のグラデーションとして流れる
-  function gradient(id, period, dur) {
-    const colors = [...PALETTE, ...PALETTE.slice(0, -1).reverse()];
-    return svgEl('linearGradient', { id, gradientUnits: 'userSpaceOnUse', x1: '0', y1: '0', x2: String(period), y2: '0', spreadMethod: 'repeat' },
-      ...colors.map((c, i) => svgEl('stop', { offset: String(i / (colors.length - 1)), 'stop-color': c })),
-      svgEl('animateTransform', { attributeName: 'gradientTransform', type: 'translate', from: '0 0', to: `${period} 0`, dur, repeatCount: 'indefinite' }));
-  }
-  // display:none の SVG に置いたグラデーションは参照できないので、大きさ 0 で置いておく
-  const defs = svgEl('svg', { 'aria-hidden': 'true', width: '0', height: '0', style: 'position:absolute;width:0;height:0;overflow:hidden' },
-    svgEl('defs', {}, gradient('ytl-grad', 60, '5s'), gradient('ytl-grad-s', 24, '2.5s')));
-  const ensureDefs = () => { if (!defs.isConnected && document.body) document.body.append(defs); };
 
   // ---------- グッド／バッドのアイコン（YouTube のアイコンを隠して、こちらを出す） ----------
   const THUMB = [
@@ -89,8 +74,8 @@
   // 4 本の光の筋を持つ小さな星
   const STAR = 'M12 0C12.8 7.2 16.8 11.2 24 12 16.8 12.8 12.8 16.8 12 24 11.2 16.8 7.2 12.8 0 12 7.2 11.2 11.2 7.2 12 0z';
   function spawnStar(cx, cy, size) {
-    const el = spawn(cx, cy, size, 'filter:drop-shadow(0 0 3px rgba(255,190,90,.9))');
-    el.append(svgEl('svg', { viewBox: '0 0 24 24', width: '100%', height: '100%', style: 'display:block' }, svgEl('path', { d: STAR, fill: '#fff4dc' })));
+    const el = spawn(cx, cy, size, 'filter:drop-shadow(0 0 3px rgba(255,255,255,.85))');
+    el.append(svgEl('svg', { viewBox: '0 0 24 24', width: '100%', height: '100%', style: 'display:block' }, svgEl('path', { d: STAR, fill: '#fff' })));
     return el;
   }
 
@@ -99,11 +84,11 @@
     btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(.965)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 420, easing: 'cubic-bezier(.3,.7,.3,1)' });
     // アイコンはばねで弾む（塗りが下から満ちるのは CSS の transition）
     icon.animate(frames(48, likePop), { duration: 860, easing: 'linear' });
-    // 温かい光がふわっとふくらむ（screen で重ねて、アイコンを隠さず明るくする）
-    fadeOut(spawn(cx, cy, 46, 'border-radius:50%;mix-blend-mode:screen;background:radial-gradient(circle,rgba(255,160,70,.7),rgba(255,40,60,.28) 45%,transparent 70%)'),
+    // 白い光がふわっとふくらむ（screen で重ねて、アイコンを隠さず明るくする）
+    fadeOut(spawn(cx, cy, 46, 'border-radius:50%;mix-blend-mode:screen;background:radial-gradient(circle,rgba(255,255,255,.55),rgba(255,255,255,.14) 45%,transparent 70%)'),
       [{ transform: 'scale(.35)', opacity: 1 }, { transform: 'scale(1.5)', opacity: 0 }], { duration: 720, delay: 60, easing: 'cubic-bezier(.2,.7,.2,1)' });
     // 細い光の輪が 1 本だけ広がる
-    fadeOut(spawn(cx, cy, 30, 'border-radius:50%;mix-blend-mode:screen;border:1.5px solid rgba(255,176,96,.95);box-shadow:0 0 10px rgba(255,90,40,.55)'),
+    fadeOut(spawn(cx, cy, 30, 'border-radius:50%;mix-blend-mode:screen;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 0 10px rgba(255,255,255,.45)'),
       [{ transform: 'scale(.55)', opacity: 0.9 }, { transform: 'scale(1.65)', opacity: 0 }], { duration: 640, delay: 90, easing: 'cubic-bezier(.2,.7,.2,1)' });
     // 上のほうで小さな星がきらっと瞬く
     [-150, -108, -66, -24, 18].forEach((deg, i) => {
@@ -191,10 +176,8 @@
 
   // ---------- 設定の反映 ----------
   function applySkin() {
-    root.toggleAttribute('data-ytl-logo', !!skin.logo);
     root.toggleAttribute('data-ytl-glass', !!skin.glass);
     root.toggleAttribute('data-ytl-like', !!skin.like);
-    ensureDefs();
     if (skin.like) decorate();
   }
 
@@ -209,7 +192,6 @@
   });
   applySkin();
   setInterval(() => {
-    ensureDefs();
     if (skin.like) decorate();
   }, 1000);
 })();

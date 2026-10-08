@@ -9,17 +9,11 @@
     font: 13px "Segoe UI Variable Text", "Segoe UI", "Yu Gothic UI", "Meiryo UI", system-ui, sans-serif;
     color: #fff;
     background:
-      radial-gradient(160px 120px at 0% 0%, rgba(255,40,60,.32), transparent 70%) no-repeat,
-      radial-gradient(180px 140px at 100% 100%, rgba(255,170,50,.22), transparent 70%) no-repeat,
+      radial-gradient(160px 120px at 0% 0%, rgba(255,255,255,.08), transparent 70%) no-repeat,
+      radial-gradient(180px 140px at 100% 100%, rgba(255,255,255,.05), transparent 70%) no-repeat,
       #17171b;
   }
-  h1 {
-    margin: 0 0 10px; font-size: 15px; font-weight: 700;
-    background: linear-gradient(90deg, #ff1e3c, #ff5a26, #ff9a24, #ffc53d, #ff9a24, #ff5a26, #ff1e3c) 0 0 / 120px 100%;
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-    animation: flow 5s linear infinite;
-  }
-  @keyframes flow { to { background-position: 120px 0; } }
+  h1 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
   .row {
     display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; cursor: pointer;
     background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
@@ -33,14 +27,14 @@
     background: rgba(255,255,255,.18); transition: background .2s; }
   input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff;
     box-shadow: 0 1px 3px rgba(0,0,0,.4); transition: transform .25s cubic-bezier(.3,1.4,.5,1); }
-  input:checked { background: linear-gradient(90deg, #ff1e3c, #ff9a24); }
+  input:checked { background: rgba(255,255,255,.88); }
+  input:checked::after { background: #17171b; }
   input:checked::after { transform: translateX(16px); }
   p { margin: 8px 2px 0; font-size: 11px; color: rgba(255,255,255,.5); line-height: 1.5; }
 </style>
 <body>
   <h1>YT Lyrics</h1>
   <label class="row"><span><b>背景</b><small>動画の色をページ全体ににじませる（ダークテーマ）</small></span><input type="checkbox" data-key="bg"></label>
-  <label class="row"><span><b>ロゴのグラデーション</b><small>YouTube ロゴの文字に色を流す</small></span><input type="checkbox" data-key="logo"></label>
   <label class="row"><span><b>ボタンをガラス風に</b><small>リキッドグラス（ダークテーマ）</small></span><input type="checkbox" data-key="glass"></label>
   <label class="row"><span><b>グッド／バッドの演出</b><small>押したときのアイコンとアニメーション</small></span><input type="checkbox" data-key="like"></label>
   <p>歌詞パネルは動画ページで Shift+L（またはプレイヤー右下の歌詞ボタン）。</p>
